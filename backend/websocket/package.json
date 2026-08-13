@@ -1,0 +1,11 @@
+{
+  "name": "websocket",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "ws": "^8.17.0",
+    "yjs": "^13.6.18"
+  }
+}
