@@ -1,70 +1,82 @@
 "use client"
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Editor from '@monaco-editor/react'
 
 export default function Page(){
-  const [code, setCode] = useState(`console.log("Hello from Replit Clone!")
+  const [files, setFiles] = useState(['index.js', 'app.js', 'test.js'])
+  const [activeFile, setActiveFile] = useState('index.js')
+  const [code, setCode] = useState(`console.log("Hello from REAL Sandbox!")
 console.log("Node:", process.version)
-console.log("Time:", new Date().toISOString())`)
+console.log("Files:", require('fs').readdirSync('.'))`)
   const [out, setOut] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [newFile, setNewFile] = useState('')
+
+  const loadFile = async (file: string) => {
+    setActiveFile(file)
+    try {
+      const res = await fetch(`http://localhost:3001/api/load?file=${file}`)
+      const data = await res.json()
+      if(data.code) setCode(data.code)
+    } catch { 
+      setCode(`// ${file}\nconsole.log("Hello from ${file}")\nconsole.log("Node:", process.version)`) 
+    }
+  }
+
+  const saveFile = async () => {
+    const res = await fetch('http://localhost:3001/api/save', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({code, file: activeFile})
+    })
+    const d = await res.json()
+    setOut(`Saved ${activeFile} ✅\n` + JSON.stringify(d))
+  }
 
   const run = async () => {
-    setOut('Running in Docker...')
+    setOut('Running in Docker REAL v20.20.2...')
     try {
       const res = await fetch('http://localhost:3001/api/execute', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({code, projectId: 'demo-project'})
+        body: JSON.stringify({code})
       })
       const data = await res.json()
-      setOut(data.stdout + (data.stderr ? '\nERR: '+data.stderr : '') + '\n\nMode: '+(data.mode||''))
-    } catch(e){
-      setOut('Backend offline? Run: cd ../backend && node index.js')
+      setOut((data.stdout||'') + '\n\nMode: ' + data.mode)
+    } catch(e:any) {
+      setOut('Error: ' + e.message)
     }
-  }
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      await fetch('http://localhost:3001/api/save', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({code, projectId: 'demo-project', file: 'index.js'})
-      })
-      setOut(prev => '✅ Saved to projects/demo-project/index.js\n' + prev)
-    } catch(e){
-      setOut('Save failed - backend offline?')
-    }
-    setSaving(false)
-    setTimeout(()=>setSaving(false), 1000)
   }
 
   return (
-    <div style={{display:'flex', flexDirection:'column', height:'100vh', background:'#0e0e10', color:'#fff'}}>
-      <div style={{padding:'10px 20px', background:'#1a1a1a', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #333'}}>
-        <h1 style={{margin:0, fontSize:18}}>⚡ Replit Clone <span style={{color:'#22c55e'}}>LIVE</span></h1>
-        <div style={{display:'flex', gap:10}}>
-          <button onClick={save} style={{padding:'6px 14px', background: saving ? '#22c55e' : '#333', cursor:'pointer', border:'1px solid #444'}}>{saving ? 'Saved!' : '💾 Save'}</button>
-          <button onClick={run} style={{padding:'6px 14px', background:'#22c55e', color:'#000', fontWeight:'bold', cursor:'pointer', border:'none'}}>▶ Run</button>
-          <button onClick={()=>window.open('https://demo-project.shubhammahant369.workers.dev','_blank')} style={{padding:'6px 14px', background:'#0ea5e9', color:'#fff', cursor:'pointer', border:'none'}}>🚀 Live</button>
+    <div style={{display:'flex', height:'100vh', background:'#0e1525', color:'white'}}>
+      <div style={{width:'220px', background:'#1c2333', padding:'12px', borderRight:'1px solid #2b3245'}}>
+        <h3 style={{color:'#00d8ff', marginBottom:'10px'}}>📁 Files</h3>
+        {files.map(f=>(
+          <div key={f} onClick={()=>loadFile(f)} 
+            style={{padding:'8px', cursor:'pointer', background: activeFile===f ? '#2b3245' : 'transparent', borderRadius:'4px', margin:'3px 0'}}>
+            {activeFile===f ? '📄' : '📃'} {f}
+          </div>
+        ))}
+        <div style={{marginTop:'15px', display:'flex', gap:'5px'}}>
+          <input value={newFile} onChange={e=>setNewFile(e.target.value)} placeholder="new.js" 
+            style={{width:'120px', background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', borderRadius:'3px'}}/>
+          <button onClick={()=>{if(newFile){setFiles([...files,newFile]); setActiveFile(newFile); setNewFile(''); setCode(`// ${newFile}\nconsole.log("New file: ${newFile}")`)}}} 
+            style={{background:'#444', color:'white', border:'none', padding:'5px 10px', borderRadius:'3px', cursor:'pointer'}}>+</button>
         </div>
       </div>
-      
-      <div style={{display:'flex', flex:1, overflow:'hidden'}}>
-        <div style={{flex:1, borderRight:'1px solid #333'}}>
-          <Editor
-            height="100%"
-            defaultLanguage="javascript"
-            theme="vs-dark"
-            value={code}
-            onChange={(v)=>setCode(v||'')}
-            options={{fontSize:14, minimap:{enabled:false}, automaticLayout:true}}
-          />
+
+      <div style={{flex:1, display:'flex', flexDirection:'column'}}>
+        <div style={{padding:'10px 15px', background:'#1c2333', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <span>⚡ Replit Clone LIVE - {activeFile} - Docker REAL ✅ v20.20.2</span>
+          <div>
+            <button onClick={saveFile} style={{marginRight:'10px', background:'#2b3245', color:'white', border:'1px solid #444', padding:'6px 12px', borderRadius:'4px', cursor:'pointer'}}>💾 Save</button>
+            <button onClick={run} style={{background:'#0fa', color:'black', fontWeight:'bold', padding:'6px 16px', border:'none', borderRadius:'4px', cursor:'pointer'}}>▶ Run</button>
+          </div>
         </div>
-        <div style={{width:'40%', background:'#111', padding:15, overflow:'auto'}}>
-          <h3 style={{marginTop:0, color:'#22c55e'}}>Output</h3>
-          <pre style={{whiteSpace:'pre-wrap', fontSize:13, color:'#0f0'}}>{out || 'Click Run to execute in Docker container...'}</pre>
+        <Editor height="60%" defaultLanguage="javascript" value={code} onChange={(v)=>setCode(v||'')} theme="vs-dark" />
+        <div style={{height:'40%', background:'black', color:'#0f0', padding:'12px', whiteSpace:'pre-wrap', fontFamily:'monospace', overflow:'auto', borderTop:'1px solid #333'}}>
+          <div style={{color:'#00d8ff', marginBottom:'5px'}}>Output</div>
+          {out || 'Click Run to execute in Docker node:20-alpine v20.20.2'}
         </div>
       </div>
     </div>
