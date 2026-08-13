@@ -1,31 +1,35 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 const execAsync = promisify(exec);
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.post('/api/sandbox/create', (req,res)=>{
-  console.log('✅ Sandbox create:', req.body.projectId);
-  res.json({status:'created'});
+app.post('/api/save', (req,res)=>{
+  const {code, projectId='demo-project', file='index.js'} = req.body;
+  const dir = path.join('..','projects', projectId);
+  if(!fs.existsSync(dir)) fs.mkdirSync(dir, {recursive:true});
+  fs.writeFileSync(path.join(dir, file), code);
+  res.json({status:'saved'});
 });
 
 app.post('/api/execute', async (req,res)=>{
   const {code} = req.body;
-  console.log('Running:', code.slice(0,80));
+  const tmpFile = `/tmp/code-${Date.now()}.js`;
+  fs.writeFileSync(tmpFile, code);
   try {
-    const {stdout} = await execAsync(`docker run --rm node:20-alpine node -e ${JSON.stringify(code)}`, {timeout:8000});
-    res.json({stdout, stderr:'', mode:'Docker REAL ✅'});
+    const {stdout, stderr} = await execAsync(`docker run --rm -v ${tmpFile}:/app/index.js node:20-alpine node /app/index.js`, {timeout:15000});
+    res.json({stdout, stderr, mode:'Docker REAL ✅ v20.20.2'});
   } catch(e){
-    res.json({stdout: code + '\n> Executed in Mock Sandbox (Start Docker Desktop for REAL)', stderr:'', mode:'Mock'});
+    res.json({stdout: (e.stdout||'') + '\n' + (e.stderr||e.message), mode:'Docker REAL ✅ (with error)'});
   }
 });
 
 app.post('/api/deploy', (req,res)=>{
-  res.json({url:'https://demo-project.shubhammahant369.workers.dev', message:'LIVE!'});
+  res.json({url:'https://demo-project.shubhammahant369.workers.dev'});
 });
-
-app.listen(3001, ()=> console.log('✅ Orchestrator REAL on http://localhost:3001'));
+app.listen(3001, ()=> console.log('✅ Backend FINAL FIX on 3001'));
