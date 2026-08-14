@@ -11,8 +11,8 @@ export default function Page(){
   const [newFile, setNewFile] = useState('')
   const [pkg, setPkg] = useState('')
   const [lang, setLang] = useState<'node'|'python'|'c'|'cpp'|'go'>('node')
-  const [showPreview, setShowPreview] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState('http://replit-clone-i1ra.onrender.com')
+  const [showPreview, setShowPreview] = useState(true)
+  const [previewUrl, setPreviewUrl] = useState('https://replit-clone-i1ra.onrender.com')
   const [stdin, setStdin] = useState('')
   const [envText, setEnvText] = useState('API_KEY=test123\nPORT=4000\nOPENAI_API_KEY=')
   const [deployUrl, setDeployUrl] = useState('')
@@ -26,14 +26,11 @@ export default function Page(){
   useEffect(()=>{
     fetch('https://replit-clone-i1ra.onrender.com/api/files').then(r=>r.json()).then(d=>{ if(d.files?.length){ setFiles(d.files); setActiveFile(d.files[0]); loadFile(d.files[0]) } })
     fetch('https://replit-clone-i1ra.onrender.com/api/env').then(r=>r.json()).then(d=>{ if(d.env && Object.keys(d.env).length){ setEnvText(Object.entries(d.env).map(([k,v])=>`${k}=${v}`).join('\n')) } }).catch(()=>{})
-
-    // V10 Socket.io
     socketRef.current = io('https://replit-clone-i1ra.onrender.com');
     socketRef.current.on('connect', ()=> setUsersOnline(c=>c+1));
-    socketRef.current.on('cursor-move', (data:any)=>{ /* show remote cursor */ });
-    socketRef.current.on('code-change', (data:any)=>{ if(data.file===activeFile && editorRef.current){ /* sync */ } });
+    socketRef.current.on('cursor-move', (data:any)=>{ });
+    socketRef.current.on('code-change', (data:any)=>{ });
     socketRef.current.on('user-left', ()=> setUsersOnline(c=> Math.max(1, c-1)));
-
     ;(async()=>{
       const { Terminal } = await import('xterm')
       const { FitAddon } = await import('xterm-addon-fit')
@@ -64,7 +61,6 @@ export default function Page(){
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
-    // V10 AI Tab completion
     editor.addAction({
       id: 'ai-complete',
       label: 'AI Complete',
@@ -79,14 +75,12 @@ export default function Page(){
         }
       }
     });
-
     editor.onDidChangeModelContent(()=> {
       const val = editor.getValue();
       setCode(val);
       socketRef.current?.emit('code-change', {file: activeFile, code: val});
-      // Fetch AI ghost text
       const pos = editor.getPosition();
-      if(pos && val.length % 10 === 0){ // throttle
+      if(pos && val.length % 10 === 0){
         fetch('https://replit-clone-i1ra.onrender.com/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code: val, cursorLine: pos.lineNumber, file: activeFile})}).then(r=>r.json()).then(d=> setAiSuggestion(d.suggestion.slice(0,60)));
       }
     });
@@ -96,12 +90,17 @@ export default function Page(){
     const envObj={} as any; envText.split('\n').forEach(line=>{ const [k,...v]=line.split('='); if(k?.trim()) envObj[k.trim()]=v.join('=').trim() });
     setOut(`Running ${lang}...`);
     const res=await fetch('https://replit-clone-i1ra.onrender.com/api/execute',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, file:activeFile, lang, stdin, env: envObj})});
-    const d=await res.json(); setOut((d.stdout||'')+`\n\nMode: ${d.mode}`)
+    const d=await res.json();
+    if(activeFile.endsWith('.html') || d.mode?.includes('html')){
+      setShowPreview(true);
+      setPreviewUrl('https://replit-clone-i1ra.onrender.com?t='+Date.now());
+    }
+    setOut((d.stdout||'')+`\n\nMode: ${d.mode}`)
   }
   const runServer = async () => {
     const envObj={} as any; envText.split('\n').forEach(line=>{ const [k,...v]=line.split('='); if(k?.trim()) envObj[k.trim()]=v.join('=').trim() });
     await fetch('https://replit-clone-i1ra.onrender.com/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env: envObj})});
-    await saveFile(); setOut('Starting server...'); setShowPreview(true); setPreviewUrl('http://replit-clone-i1ra.onrender.com?t='+Date.now());
+    await saveFile(); setOut('Starting server...'); setShowPreview(true); setPreviewUrl('https://replit-clone-i1ra.onrender.com?t='+Date.now());
     const res=await fetch('https://replit-clone-i1ra.onrender.com/api/run-server',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({file:activeFile, code})});
     const d=await res.json(); setOut((d.logs||'') + '\n\n🌐 :4000');
   }
@@ -143,7 +142,7 @@ export default function Page(){
             <div style={{flex:'0 0 25%', background:'#0e1525', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00ff9d', fontWeight:'bold'}}>TERMINAL - {usersOnline} online</div><div ref={termRef} style={{flex:1, padding:'5px', overflow:'hidden'}}></div></div>
             <div style={{flex:'0 0 25%', background:'#11141f', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00d8ff', fontWeight:'bold'}}>OUTPUT - AI + Deploy</div><div style={{flex:1, color:'#0f0', padding:'8px', whiteSpace:'pre-wrap', fontFamily:'monospace', overflow:'auto', fontSize:'11px'}}>{out || 'V10 AI: Type console.log and press Tab...'}</div></div>
           </div>
-          {showPreview && (<div style={{flex:'0 0 42%', display:'flex', flexDirection:'column', background:'white'}}><div style={{padding:'6px 10px', background:'#1c2333', color:'white', fontSize:'11px', display:'flex', justifyContent:'space-between'}}><span>🌐 :4000</span><button onClick={()=>setPreviewUrl('http://replit-clone-i1ra.onrender.com?t='+Date.now())} style={{background:'#2b3245', color:'white', border:'none', padding:'3px 8px', borderRadius:'3px', fontSize:'10px'}}>↻</button></div><iframe src={previewUrl} style={{flex:1, border:'none', background:'white', width:'100%'}} /></div>)}
+          {showPreview && (<div style={{flex:'0 0 42%', display:'flex', flexDirection:'column', background:'white'}}><div style={{padding:'6px 10px', background:'#1c2333', color:'white', fontSize:'11px', display:'flex', justifyContent:'space-between'}}><span>🌐 :4000</span><button onClick={()=>setPreviewUrl('https://replit-clone-i1ra.onrender.com?t='+Date.now())} style={{background:'#2b3245', color:'white', border:'none', padding:'3px 8px', borderRadius:'3px', fontSize:'10px'}}>↻</button></div><iframe src={previewUrl} style={{flex:1, border:'none', background:'white', width:'100%'}} /></div>)}
         </div>
       </div>
       {showDeployModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}><div style={{background:'#1c2333', padding:'20px', borderRadius:'12px', width:'420px', border:'2px solid #ffbd2e'}}><h3 style={{margin:'0 0 10px 0', color:'#ffbd2e'}}>🚀 V10 Deployed!</h3><div style={{background:'#0e1525', padding:'10px', borderRadius:'6px', wordBreak:'break-all', fontSize:'12px', marginBottom:'10px'}}>{deployUrl}</div><div style={{display:'flex', gap:'8px'}}><button onClick={()=>{navigator.clipboard.writeText(deployUrl); setOut('Copied!')}} style={{flex:1, background:'#ffbd2e', color:'black', border:'none', padding:'8px', borderRadius:'6px', fontWeight:'bold'}}>📋 Copy</button><button onClick={()=>setShowDeployModal(false)} style={{flex:1, background:'#2b3245', color:'white', border:'1px solid #444', padding:'8px', borderRadius:'6px'}}>Close</button></div></div></div>)}
