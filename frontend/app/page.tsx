@@ -6,7 +6,7 @@ import { io } from 'socket.io-client'
 export default function Page(){
   const [files, setFiles] = useState<string[]>(['index.js'])
   const [activeFile, setActiveFile] = useState('index.js')
-  const [code, setCode] = useState('// V10 - AI Tab + Multiplayer\nconsole.log("Try Tab for AI");')
+  const [code, setCode] = useState('// V10.1 - AI Tab + Multiplayer Cursors\nconsole.log("Move cursor - others see you!");')
   const [out, setOut] = useState('')
   const [newFile, setNewFile] = useState('')
   const [pkg, setPkg] = useState('')
@@ -19,16 +19,28 @@ export default function Page(){
   const [showDeployModal, setShowDeployModal] = useState(false)
   const [aiSuggestion, setAiSuggestion] = useState('')
   const [usersOnline, setUsersOnline] = useState(1)
+  const [cursors, setCursors] = useState<any>({});
   const editorRef = useRef<any>(null)
   const socketRef = useRef<any>(null)
   const termRef = useRef<HTMLDivElement>(null)
 
   useEffect(()=>{
     fetch('https://replit-clone-i1ra.onrender.com/api/files').then(r=>r.json()).then(d=>{ if(d.files?.length){ setFiles(d.files); setActiveFile(d.files[0]); loadFile(d.files[0]) } })
-    fetch('https://replit-clone-i1ra.onrender.com/api/env').then(r=>r.json()).then(d=>{ if(d.env && Object.keys(d.env).length){ setEnvText(Object.entries(d.env).map(([k,v])=>`${k}=${v}`).join('\n')) } }).catch(()=>{})
+    fetch('https://replit-clone-i1ra.onrender.com/api/env').then(r=>r.json()).then(d=>{ if(d.env && Object.keys(d.env).length){ setEnvText(Object.entries(d.env).map(([k,v]:any)=>`${k}=${v}`).join('\n')) } }).catch(()=>{})
     socketRef.current = io('https://replit-clone-i1ra.onrender.com');
     socketRef.current.on('connect', ()=> setUsersOnline(c=>c+1));
-    socketRef.current.on('user-left', ()=> setUsersOnline(c=> Math.max(1, c-1)));
+    socketRef.current.on('user-left', (id:any)=> {
+      setUsersOnline(c=> Math.max(1, c-1));
+      setCursors((prev:any)=>{ const n={...prev}; delete n[id]; return n; })
+    });
+    socketRef.current.on('cursor-move', (data:any) => {
+      setCursors((prev:any) => ({...prev, [data.id]: {...data, color: `hsl(${parseInt(data.id.slice(0,2),16)%360}, 80%, 60%)`}}));
+    });
+    socketRef.current.on('code-change', (data:any)=>{
+      if(data.file === activeFile && data.code!== code){
+        setCode(data.code);
+      }
+    });
     ;(async()=>{
       const { Terminal } = await import('xterm')
       const { FitAddon } = await import('xterm-addon-fit')
@@ -36,9 +48,9 @@ export default function Page(){
       if(termRef.current){
         const term = new Terminal({cursorBlink:true, theme:{background:'#0e1525', foreground:'#00ff9d'}, fontSize:12})
         const fit = new FitAddon(); term.loadAddon(fit); term.open(termRef.current); fit.fit()
-        term.writeln('\x1b[1;32m✔ V10 - AI + Multiplayer + Deploy\x1b[0m')
+        term.writeln('\x1b[1;32m✔ V10.1 - AI + Multiplayer Cursors\x1b[0m')
         let buf=''
-        term.onKey(async ({key, domEvent})=>{
+        term.onKey(async ({key, domEvent}:any)=>{
           if(domEvent.key==='Enter'){
             term.writeln(''); if(buf.trim()==='clear'){ term.clear(); buf=''; term.write('\r\n$ '); return}
             if(buf.trim()){
@@ -85,13 +97,20 @@ export default function Page(){
         }
       }
     });
+    editor.onDidChangeCursorPosition((e:any)=>{
+      socketRef.current?.emit('cursor-move', {
+        line: e.position.lineNumber,
+        column: e.position.column,
+        name: 'User ' + (socketRef.current?.id?.slice(0,3) || '??')
+      });
+    });
     editor.onDidChangeModelContent(()=> {
       const val = editor.getValue();
       setCode(val);
       socketRef.current?.emit('code-change', {file: activeFile, code: val});
       const pos = editor.getPosition();
-      if(pos && val.length % 10 === 0){
-        fetch('https://replit-clone-i1ra.onrender.com/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code: val, cursorLine: pos.lineNumber, file: activeFile})}).then(r=>r.json()).then(d=> setAiSuggestion(d.suggestion.slice(0,60)));
+      if(pos && val.length % 15 === 0){
+        fetch('https://replit-clone-i1ra.onrender.com/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code: val, cursorLine: pos.lineNumber, file: activeFile})}).then(r=>r.json()).then(d=> setAiSuggestion(d.suggestion?.slice(0,60)||''));
       }
     });
   }
@@ -140,12 +159,16 @@ export default function Page(){
   return (
     <div style={{display:'flex', height:'100vh', background:'#0e1525', color:'white', overflow:'hidden', fontFamily:'-apple-system, system-ui'}}>
       <div style={{width:'260px', minWidth:'260px', background:'#1c2333', padding:'12px', borderRight:'1px solid #2b3245', display:'flex', flexDirection:'column', gap:'8px', overflowY:'auto'}}>
-        <div style={{color:'#00d8ff', fontWeight:'bold', fontSize:'13px', display:'flex', justifyContent:'space-between'}}><span>📁 Files V10</span><span style={{fontSize:'10px', background:'#00ff9d', color:'black', padding:'2px 6px', borderRadius:'10px'}}>{usersOnline} online</span></div>
+        <div style={{color:'#00d8ff', fontWeight:'bold', fontSize:'13px', display:'flex', justifyContent:'space-between'}}><span>📁 Files V10.1</span><span style={{fontSize:'10px', background:'#00ff9d', color:'black', padding:'2px 6px', borderRadius:'10px'}}>{usersOnline} online</span></div>
         <div>{files.map(f=><div key={f} onClick={()=>loadFile(f)} style={{padding:'6px 8px', cursor:'pointer', background: activeFile===f? '#2b3245':'transparent', borderRadius:'4px', margin:'2px 0', fontSize:'12px'}}>📄 {f}</div>)}</div>
-        <div style={{display:'flex', gap:'5px'}}><input value={newFile} onChange={e=>setNewFile(e.target.value)} placeholder="new file" style={{flex:1, background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/><button onClick={async()=>{ if(!newFile) return; await fetch('https://replit-clone-i1ra.onrender.com/api/save',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'// '+newFile, file:newFile})}); setFiles([...files,newFile]); setNewFile('')}} style={{background:'#2b3245', color:'white', border:'1px solid #444', borderRadius:'4px', padding:'5px 8px'}}>+</button></div>
+        <div style={{marginTop:'8px', borderTop:'1px solid #2b3245', paddingTop:'8px'}}>
+          <div style={{fontSize:'11px', color:'#ffbd2e', fontWeight:'bold'}}>👥 Live Cursors:</div>
+          {Object.keys(cursors).length===0? <div style={{fontSize:'10px', color:'#666'}}>No other users moving...</div> : Object.entries(cursors).map(([id, c]:any)=><div key={id} style={{fontSize:'10px', display:'flex', alignItems:'center', gap:'5px', margin:'3px 0'}}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:c.color}}></div><span style={{color:c.color}}>{c.name}</span><span style={{color:'#888'}}>L{c.line}:{c.column}</span></div>)}
+        </div>
+        <div style={{display:'flex', gap:'5px', marginTop:'8px'}}><input value={newFile} onChange={e=>setNewFile(e.target.value)} placeholder="new file" style={{flex:1, background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/><button onClick={async()=>{ if(!newFile) return; await fetch('https://replit-clone-i1ra.onrender.com/api/save',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'// '+newFile, file:newFile})}); setFiles([...files,newFile]); setNewFile('')}} style={{background:'#2b3245', color:'white', border:'1px solid #444', borderRadius:'4px', padding:'5px 8px'}}>+</button></div>
         <div style={{borderTop:'1px solid #2b3245', paddingTop:'8px'}}>
           <div style={{fontSize:'11px'}}>Lang: <select value={lang} onChange={e=>setLang(e.target.value as any)} style={{background:'#0e1525', color:'white', border:'1px solid #444', borderRadius:'4px', padding:'2px', fontSize:'11px'}}><option value="node">Node</option><option value="python">Python</option><option value="c">C</option><option value="cpp">C++</option><option value="go">Go</option></select></div>
-          <div style={{marginTop:'6px', background:'#0e1525', border:'1px dashed #00d8ff', padding:'5px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff'}}>🤖 AI: Type code + Tab to autocomplete<br/>Ghost: {aiSuggestion||'...'}</div>
+          <div style={{marginTop:'6px', background:'#0e1525', border:'1px dashed #00d8ff', padding:'5px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff'}}>🤖 AI: Tab to autocomplete<br/>Ghost: {aiSuggestion||'...'}</div>
           <div style={{marginTop:'8px'}}><div style={{fontSize:'10px', color:'#00d8ff', display:'flex', justifyContent:'space-between'}}><span>🔑 ENV</span><button onClick={async()=>{const o={} as any; envText.split('\n').forEach(l=>{const [k,...v]=l.split('='); if(k?.trim()) o[k.trim()]=v.join('=').trim()}); await fetch('https://replit-clone-i1ra.onrender.com/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env:o})}); setOut('ENV saved ✅')}} style={{fontSize:'9px', background:'#00d8ff', color:'black', border:'none', padding:'2px 6px', borderRadius:'3px'}}>Save</button></div><textarea value={envText} onChange={e=>setEnvText(e.target.value)} style={{width:'100%', height:'50px', background:'#0e1525', color:'#0f0', border:'1px solid #444', padding:'5px', fontSize:'11px', fontFamily:'monospace', borderRadius:'4px'}}/></div>
           <div style={{marginTop:'6px'}}><div style={{fontSize:'10px', color:'#00ff9d'}}>📥 stdin</div><textarea value={stdin} onChange={e=>setStdin(e.target.value)} style={{width:'100%', height:'40px', background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/></div>
           <div style={{marginTop:'6px', display:'flex', gap:'5px'}}><input value={pkg} onChange={e=>setPkg(e.target.value)} placeholder="express" style={{flex:1, background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/><button onClick={install} style={{background:'#00ff9d', color:'black', border:'none', padding:'5px 8px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold'}}>Install</button></div>
@@ -153,12 +176,12 @@ export default function Page(){
       </div>
       <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
         <div style={{padding:'8px 12px', background:'#1c2333', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #2b3245'}}>
-          <span style={{fontSize:'12px'}}>⚡ V10 - {activeFile} - {lang} - AI Tab + {usersOnline} users ✅</span>
+          <span style={{fontSize:'12px'}}>⚡ V10.1 - {activeFile} - {lang} - AI + {usersOnline} users 👥</span>
           <div style={{display:'flex', gap:'6px'}}>
             <button onClick={saveFile} style={{background:'#2b3245', color:'white', border:'1px solid #444', padding:'5px 10px', borderRadius:'4px', fontSize:'11px'}}>💾 Save</button>
             <button onClick={run} style={{background:'#00d8ff', color:'black', padding:'5px 12px', borderRadius:'4px', fontWeight:'bold', fontSize:'11px', border:'none'}}>▶ Run</button>
             <button onClick={runServer} style={{background:'#2b3245', color:'white', border:'1px solid #444', padding:'5px 10px', borderRadius:'4px', fontSize:'11px'}}>🌐 Server</button>
-            <button onClick={()=>setShowPreview(!showPreview)} style={{background: showPreview? '#ff4757':'#2b3245', color:'white', border:'1px solid #444', padding:'5px 10px', borderRadius:'4px', fontSize:'11px'}}>{showPreview? '👁️ Hide' : '👁️ Preview'}</button>
+            <button onClick={()=>setShowPreview(!showPreview)} style={{background: showPreview? '#ff4757':'#2b3245', color:'white', border:'1px solid #444', padding:'5px 10px', borderRadius:'4px', fontSize:'11px'}}>{showPreview? '👁 Hide' : '👁 Preview'}</button>
             <button onClick={deploy} style={{background:'#ffbd2e', color:'black', padding:'5px 12px', borderRadius:'4px', fontWeight:'bold', fontSize:'11px', border:'none'}}>🚀 Deploy</button>
           </div>
         </div>
@@ -166,15 +189,18 @@ export default function Page(){
           <div style={{flex: showPreview? '0 0 58%' : '1', display:'flex', flexDirection:'column', minWidth:0}}>
             <div style={{flex:'0 0 50%', minHeight:0, position:'relative'}}>
               <Editor height="100%" defaultLanguage={lang==='python'?'python': lang==='c'||lang==='cpp'?'cpp': lang==='go'?'go':'javascript'} value={code} onMount={handleEditorMount} theme="vs-dark" options={{fontSize:12, minimap:{enabled:false}, inlineSuggest:{enabled:true}}} />
-              {aiSuggestion && <div style={{position:'absolute', bottom:'10px', left:'10px', background:'rgba(0,216,255,0.15)', border:'1px solid #00d8ff', padding:'4px 8px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff', pointerEvents:'none'}}>🤖 Tab: {aiSuggestion}</div>}
+              {aiSuggestion && <div style={{position:'absolute', bottom:'10px', left:'10px', background:'rgba(0,216,255,0.15)', border:'1px solid #00d8ff', padding:'4px 8px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff', pointerEvents:'none', zIndex:10}}>🤖 Tab: {aiSuggestion}</div>}
+              <div style={{position:'absolute', top:'10px', right:'10px', zIndex:10, display:'flex', flexDirection:'column', gap:'4px'}}>
+                {Object.entries(cursors).map(([id, c]:any)=><div key={id} style={{background:c.color, color:'black', padding:'2px 6px', borderRadius:'10px', fontSize:'9px', fontWeight:'bold'}}>👤 {c.name} L{c.line}</div>)}
+              </div>
             </div>
-            <div style={{flex:'0 0 25%', background:'#0e1525', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00ff9d', fontWeight:'bold'}}>TERMINAL - {usersOnline} online</div><div ref={termRef} style={{flex:1, padding:'5px', overflow:'hidden'}}></div></div>
-            <div style={{flex:'0 0 25%', background:'#11141f', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00d8ff', fontWeight:'bold'}}>OUTPUT - AI + Deploy</div><div style={{flex:1, color:'#0f0', padding:'8px', whiteSpace:'pre-wrap', fontFamily:'monospace', overflow:'auto', fontSize:'11px'}}>{out || 'V10 AI: Type console.log and press Tab...'}</div></div>
+            <div style={{flex:'0 0 25%', background:'#0e1525', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00ff9d', fontWeight:'bold'}}>TERMINAL - {usersOnline} online 👥</div><div ref={termRef} style={{flex:1, padding:'5px', overflow:'hidden'}}></div></div>
+            <div style={{flex:'0 0 25%', background:'#11141f', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00d8ff', fontWeight:'bold'}}>OUTPUT</div><div style={{flex:1, color:'#0f0', padding:'8px', whiteSpace:'pre-wrap', fontFamily:'monospace', overflow:'auto', fontSize:'11px'}}>{out || 'V10.1 - Open 2 tabs to test cursors!'}</div></div>
           </div>
           {showPreview && (<div style={{flex:'0 0 42%', display:'flex', flexDirection:'column', background:'white'}}><div style={{padding:'6px 10px', background:'#1c2333', color:'white', fontSize:'11px', display:'flex', justifyContent:'space-between'}}><span>🌐 :4000</span><div style={{display:'flex', gap:'5px'}}><button onClick={()=>setPreviewUrl('https://replit-clone-i1ra.onrender.com?t='+Date.now())} style={{background:'#2b3245', color:'white', border:'none', padding:'3px 8px', borderRadius:'3px', fontSize:'10px'}}>↻</button><button onClick={()=>setShowPreview(false)} style={{background:'#ff4757', color:'white', border:'none', padding:'3px 8px', borderRadius:'3px', fontSize:'10px'}}>✕ Close</button></div></div><iframe src={previewUrl} style={{flex:1, border:'none', background:'white', width:'100%'}} /></div>)}
         </div>
       </div>
-      {showDeployModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}><div style={{background:'#1c2333', padding:'20px', borderRadius:'12px', width:'420px', border:'2px solid #ffbd2e'}}><h3 style={{margin:'0 0 10px 0', color:'#ffbd2e'}}>🚀 V10 Deployed!</h3><div style={{background:'#0e1525', padding:'10px', borderRadius:'6px', wordBreak:'break-all', fontSize:'12px', marginBottom:'10px'}}>{deployUrl}</div><div style={{display:'flex', gap:'8px'}}><button onClick={()=>{navigator.clipboard.writeText(deployUrl); setOut('Copied!')}} style={{flex:1, background:'#ffbd2e', color:'black', border:'none', padding:'8px', borderRadius:'6px', fontWeight:'bold'}}>📋 Copy</button><button onClick={()=>setShowDeployModal(false)} style={{flex:1, background:'#2b3245', color:'white', border:'1px solid #444', padding:'8px', borderRadius:'6px'}}>Close</button></div></div></div>)}
+      {showDeployModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}><div style={{background:'#1c2333', padding:'20px', borderRadius:'12px', width:'420px', border:'2px solid #ffbd2e'}}><h3 style={{margin:'0 0 10px 0', color:'#ffbd2e'}}>🚀 Deployed!</h3><div style={{background:'#0e1525', padding:'10px', borderRadius:'6px', wordBreak:'break-all', fontSize:'12px', marginBottom:'10px'}}>{deployUrl}</div><div style={{display:'flex', gap:'8px'}}><button onClick={()=>{navigator.clipboard.writeText(deployUrl); setOut('Copied!')}} style={{flex:1, background:'#ffbd2e', color:'black', border:'none', padding:'8px', borderRadius:'6px', fontWeight:'bold'}}>📋 Copy</button><button onClick={()=>setShowDeployModal(false)} style={{flex:1, background:'#2b3245', color:'white', border:'1px solid #444', padding:'8px', borderRadius:'6px'}}>Close</button></div></div></div>)}
     </div>
   )
 }
