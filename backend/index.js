@@ -31,7 +31,7 @@ app.post('/api/ai-complete', async (req,res)=>{
   if(!line || line.length < 2) return res.json({suggestion:'', ghostText:''});
   try{
     const apiKey = envVars.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
-    if(!apiKey) return res.json({suggestion:' // Add OPENAI_API_KEY in ENV', ghostText:''});
+    if(!apiKey) return res.json({suggestion:' // Add GROQ_API_KEY in Render ENV', ghostText:''});
     const prompt = `Complete this code. Context:\n${code.slice(-600)}\nLine: ${line}\nReturn ONLY completion, max 50 chars.`;
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method:'POST',
