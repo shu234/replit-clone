@@ -81,8 +81,8 @@ export default function Page(){
     });
 
     editor.onDidChangeModelContent(()=> {
-      const val = editor.getValue();
-      setCode(val);
+  const val = editor.getValue();
+  if(val !== code) setCode(val);
       socketRef.current?.emit('code-change', {file: activeFile, code: val});
       // Fetch AI ghost text
       const pos = editor.getPosition();
@@ -136,10 +136,15 @@ export default function Page(){
         </div>
         <div style={{display:'flex', flex:1, overflow:'hidden', minHeight:0}}>
           <div style={{flex: showPreview? '0 0 58%' : '1', display:'flex', flexDirection:'column', minWidth:0}}>
-            <div style={{flex:'0 0 50%', minHeight:0, position:'relative'}}>
-              <Editor height="100%" defaultLanguage={lang==='python'?'python': lang==='c'||lang==='cpp'?'cpp': lang==='go'?'go':'javascript'} value={code} onMount={handleEditorMount} theme="vs-dark" options={{fontSize:12, minimap:{enabled:false}, inlineSuggest:{enabled:true}}} />
-              {aiSuggestion && <div style={{position:'absolute', bottom:'10px', left:'10px', background:'rgba(0,216,255,0.15)', border:'1px solid #00d8ff', padding:'4px 8px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff', pointerEvents:'none'}}>🤖 Tab: {aiSuggestion}</div>}
-            </div>
+            <div style={{flex:'0 0 50%', minHeight:0, position:'relative', background:'#1e1e1e'}}>
+  <Editor 
+    height="100%" 
+    defaultLanguage={lang==='python'?'python': lang==='c'||lang==='cpp'?'cpp': lang==='go'?'go':'javascript'} 
+    defaultValue={code}
+    onMount={handleEditorMount} 
+    theme="vs-dark" 
+    options={{fontSize:12, minimap:{enabled:false}, inlineSuggest:{enabled:true}, readOnly: false, domReadOnly: false, automaticLayout: true}} 
+  />
             <div style={{flex:'0 0 25%', background:'#0e1525', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00ff9d', fontWeight:'bold'}}>TERMINAL - {usersOnline} online</div><div ref={termRef} style={{flex:1, padding:'5px', overflow:'hidden'}}></div></div>
             <div style={{flex:'0 0 25%', background:'#11141f', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00d8ff', fontWeight:'bold'}}>OUTPUT - AI + Deploy</div><div style={{flex:1, color:'#0f0', padding:'8px', whiteSpace:'pre-wrap', fontFamily:'monospace', overflow:'auto', fontSize:'11px'}}>{out || 'V10 AI: Type console.log and press Tab...'}</div></div>
           </div>
