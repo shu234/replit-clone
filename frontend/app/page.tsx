@@ -12,7 +12,7 @@ export default function Page(){
   const [pkg, setPkg] = useState('')
   const [lang, setLang] = useState<'node'|'python'|'c'|'cpp'|'go'>('node')
   const [showPreview, setShowPreview] = useState(false)
-  const [previewUrl, setPreviewUrl] = useState('http://localhost:4000')
+  const [previewUrl, setPreviewUrl] = useState('http://replit-clone-i1ra.onrender.com')
   const [stdin, setStdin] = useState('')
   const [envText, setEnvText] = useState('API_KEY=test123\nPORT=4000\nOPENAI_API_KEY=')
   const [deployUrl, setDeployUrl] = useState('')
@@ -81,8 +81,8 @@ export default function Page(){
     });
 
     editor.onDidChangeModelContent(()=> {
-  const val = editor.getValue();
-  if(val !== code) setCode(val);
+      const val = editor.getValue();
+      setCode(val);
       socketRef.current?.emit('code-change', {file: activeFile, code: val});
       // Fetch AI ghost text
       const pos = editor.getPosition();
@@ -101,7 +101,7 @@ export default function Page(){
   const runServer = async () => {
     const envObj={} as any; envText.split('\n').forEach(line=>{ const [k,...v]=line.split('='); if(k?.trim()) envObj[k.trim()]=v.join('=').trim() });
     await fetch('https://replit-clone-i1ra.onrender.com/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env: envObj})});
-    await saveFile(); setOut('Starting server...'); setShowPreview(true); setPreviewUrl('http://localhost:4000?t='+Date.now());
+    await saveFile(); setOut('Starting server...'); setShowPreview(true); setPreviewUrl('http://replit-clone-i1ra.onrender.com?t='+Date.now());
     const res=await fetch('https://replit-clone-i1ra.onrender.com/api/run-server',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({file:activeFile, code})});
     const d=await res.json(); setOut((d.logs||'') + '\n\n🌐 :4000');
   }
@@ -136,19 +136,14 @@ export default function Page(){
         </div>
         <div style={{display:'flex', flex:1, overflow:'hidden', minHeight:0}}>
           <div style={{flex: showPreview? '0 0 58%' : '1', display:'flex', flexDirection:'column', minWidth:0}}>
-            <div style={{flex:'0 0 50%', minHeight:0, position:'relative', background:'#1e1e1e'}}>
-  <Editor 
-    height="100%" 
-    defaultLanguage={lang==='python'?'python': lang==='c'||lang==='cpp'?'cpp': lang==='go'?'go':'javascript'} 
-    defaultValue={code}
-    onMount={handleEditorMount} 
-    theme="vs-dark" 
-    options={{fontSize:12, minimap:{enabled:false}, inlineSuggest:{enabled:true}, readOnly: false, domReadOnly: false, automaticLayout: true}} 
-  />
+            <div style={{flex:'0 0 50%', minHeight:0, position:'relative'}}>
+              <Editor height="100%" defaultLanguage={lang==='python'?'python': lang==='c'||lang==='cpp'?'cpp': lang==='go'?'go':'javascript'} value={code} onMount={handleEditorMount} theme="vs-dark" options={{fontSize:12, minimap:{enabled:false}, inlineSuggest:{enabled:true}}} />
+              {aiSuggestion && <div style={{position:'absolute', bottom:'10px', left:'10px', background:'rgba(0,216,255,0.15)', border:'1px solid #00d8ff', padding:'4px 8px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff', pointerEvents:'none'}}>🤖 Tab: {aiSuggestion}</div>}
+            </div>
             <div style={{flex:'0 0 25%', background:'#0e1525', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00ff9d', fontWeight:'bold'}}>TERMINAL - {usersOnline} online</div><div ref={termRef} style={{flex:1, padding:'5px', overflow:'hidden'}}></div></div>
             <div style={{flex:'0 0 25%', background:'#11141f', borderTop:'1px solid #2b3245', display:'flex', flexDirection:'column', minHeight:0}}><div style={{padding:'3px 10px', background:'#1c2333', fontSize:'10px', color:'#00d8ff', fontWeight:'bold'}}>OUTPUT - AI + Deploy</div><div style={{flex:1, color:'#0f0', padding:'8px', whiteSpace:'pre-wrap', fontFamily:'monospace', overflow:'auto', fontSize:'11px'}}>{out || 'V10 AI: Type console.log and press Tab...'}</div></div>
           </div>
-          {showPreview && (<div style={{flex:'0 0 42%', display:'flex', flexDirection:'column', background:'white'}}><div style={{padding:'6px 10px', background:'#1c2333', color:'white', fontSize:'11px', display:'flex', justifyContent:'space-between'}}><span>🌐 :4000</span><button onClick={()=>setPreviewUrl('http://localhost:4000?t='+Date.now())} style={{background:'#2b3245', color:'white', border:'none', padding:'3px 8px', borderRadius:'3px', fontSize:'10px'}}>↻</button></div><iframe src={previewUrl} style={{flex:1, border:'none', background:'white', width:'100%'}} /></div>)}
+          {showPreview && (<div style={{flex:'0 0 42%', display:'flex', flexDirection:'column', background:'white'}}><div style={{padding:'6px 10px', background:'#1c2333', color:'white', fontSize:'11px', display:'flex', justifyContent:'space-between'}}><span>🌐 :4000</span><button onClick={()=>setPreviewUrl('http://replit-clone-i1ra.onrender.com?t='+Date.now())} style={{background:'#2b3245', color:'white', border:'none', padding:'3px 8px', borderRadius:'3px', fontSize:'10px'}}>↻</button></div><iframe src={previewUrl} style={{flex:1, border:'none', background:'white', width:'100%'}} /></div>)}
         </div>
       </div>
       {showDeployModal && (<div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.75)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999}}><div style={{background:'#1c2333', padding:'20px', borderRadius:'12px', width:'420px', border:'2px solid #ffbd2e'}}><h3 style={{margin:'0 0 10px 0', color:'#ffbd2e'}}>🚀 V10 Deployed!</h3><div style={{background:'#0e1525', padding:'10px', borderRadius:'6px', wordBreak:'break-all', fontSize:'12px', marginBottom:'10px'}}>{deployUrl}</div><div style={{display:'flex', gap:'8px'}}><button onClick={()=>{navigator.clipboard.writeText(deployUrl); setOut('Copied!')}} style={{flex:1, background:'#ffbd2e', color:'black', border:'none', padding:'8px', borderRadius:'6px', fontWeight:'bold'}}>📋 Copy</button><button onClick={()=>setShowDeployModal(false)} style={{flex:1, background:'#2b3245', color:'white', border:'1px solid #444', padding:'8px', borderRadius:'6px'}}>Close</button></div></div></div>)}
