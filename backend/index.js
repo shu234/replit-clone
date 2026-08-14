@@ -23,17 +23,30 @@ app.get('/', (req,res)=>{
 });
 app.get('/api/env', (req,res)=> res.json({env: envVars}));
 app.post('/api/env', (req,res)=>{ envVars = req.body.env||{}; fs.writeFileSync(path.join(PROJECT_DIR, '.env.json'), JSON.stringify(envVars, null, 2)); res.json({status:'saved', env: envVars}); });
-app.post('/api/ai-complete', (req,res)=>{
+
+// === REAL AI ===
+app.post('/api/ai-complete', async (req,res)=>{
   const {code, cursorLine} = req.body;
   const line = (code?.split('\n')[cursorLine-1]||'').trim();
-  if(!line || line.includes('V10 AI suggestion')) return res.json({suggestion:'', ghostText:''});
-  let suggestion = '';
-  if(line.endsWith('console.log(')) suggestion = '"Hello V10 AI 🚀"';
-  else if(line.endsWith('app.get(')) suggestion = '"/", (req,res)=> res.send("AI!")';
-  else if(line === 'const ') suggestion = 'app = express();';
-  else return res.json({suggestion:'', ghostText:''});
-  res.json({suggestion, ghostText: suggestion});
+  if(!line || line.length < 2) return res.json({suggestion:'', ghostText:''});
+  try{
+    const apiKey = envVars.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    if(!apiKey) return res.json({suggestion:' // Add OPENAI_API_KEY in ENV', ghostText:''});
+    const prompt = `Complete this code. Context:\n${code.slice(-600)}\nLine: ${line}\nReturn ONLY completion, max 50 chars.`;
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+      body: JSON.stringify({model:'gpt-3.5-turbo', messages:[{role:'user', content: prompt}], max_tokens:40, temperature:0.2})
+    });
+    const data = await response.json();
+    const suggestion = data.choices?.[0]?.message?.content?.trim().slice(0,80) || '';
+    res.json({suggestion, ghostText: suggestion});
+  }catch(e){
+    console.log('AI err', e.message);
+    res.json({suggestion:'', ghostText:''});
+  }
 });
+
 app.post('/api/execute', (req,res)=>{
   const {code, file='', lang='node', stdin='', env={}} = req.body;
   const combinedEnv = {...envVars,...env};
@@ -55,10 +68,10 @@ app.post('/api/execute', (req,res)=>{
 });
 app.post('/api/deploy', (req,res)=>{
   const {projectId='demo-project', file='server.js'} = req.body; const fp = path.join(PROJECT_DIR, file); if(!fs.existsSync(fp) && req.body.code) fs.writeFileSync(fp, req.body.code);
-  const publicUrl = `https://${projectId}-${Date.now().toString(36).slice(0,6)}.workers.dev`; const deploy = {id: Date.now().toString(36), projectId, file, url: publicUrl, localUrl:'http://localhost:4000', timestamp: new Date().toISOString(), status:'deployed'};
+  const publicUrl = `https://${projectId}-${Date.now().toString(36).slice(0,6)}.workers.dev`; const deploy = {id: Date.now().toString(36), projectId, file, url: publicUrl, localUrl:'https://replit-clone-i1ra.onrender.com', timestamp: new Date().toISOString(), status:'deployed'};
   deployHistory.unshift(deploy); if(deployHistory.length>20) deployHistory = deployHistory.slice(0,20); fs.writeFileSync(path.join(PROJECT_DIR, '.deploy.json'), JSON.stringify(deployHistory, null, 2));
   exec('lsof -ti:4000 | xargs kill -9 2>/dev/null', ()=>{ if(serverProc){ try{serverProc.kill();}catch{} serverProc=null; } serverProc = spawn('node', [fp], {cwd: PROJECT_DIR, env:{...process.env,...envVars, PORT:'4000'}}); });
-  res.json({url: publicUrl, localUrl:'http://localhost:4000', deployId: deploy.id, status:'deployed', history: deployHistory});
+  res.json({url: publicUrl, localUrl:'https://replit-clone-i1ra.onrender.com', deployId: deploy.id, status:'deployed', history: deployHistory});
 });
 app.get('/api/deploys', (req,res)=> res.json({deploys: deployHistory}));
 app.get('/api/files', (req,res)=>{ try{ const files = fs.readdirSync(PROJECT_DIR).filter(f=>!f.startsWith('.') && f!=='node_modules' && f!=='package-lock.json' && f!=='package.json' && f!=='.env.json' && f!=='.deploy.json' &&!f.startsWith('_tmp')); res.json({files: files.length?files:['index.js']}); }catch{ res.json({files:['index.js']}); } });
@@ -66,6 +79,6 @@ app.get('/api/load', (req,res)=>{ const fp = path.join(PROJECT_DIR, req.query.fi
 app.post('/api/save', (req,res)=>{ fs.writeFileSync(path.join(PROJECT_DIR, req.body.file), req.body.code); io.emit('file-saved', req.body.file); res.json({status:'saved'}); });
 app.post('/api/terminal', (req,res)=>{ exec(req.body.cmd, {cwd: PROJECT_DIR, timeout:8000, env:{...process.env,...envVars}}, (err, stdout, stderr)=>{ res.json({output: (stdout||'')+(stderr||'') || '(done)'}); }); });
 app.post('/api/install', (req,res)=>{ const cmd = req.body.lang==='python'? `pip3 install ${req.body.pkg}` : `cd ${PROJECT_DIR} && npm init -y > /dev/null 2>&1; npm install ${req.body.pkg} --save`; exec(cmd, {timeout:60000, env:{...process.env,...envVars}}, (err, stdout, stderr)=>{ res.json({stdout: (stdout||'')+(stderr||'')}); }); });
-app.post('/api/run-server', (req,res)=>{ const file = req.body.file || 'index.js'; const fp = path.join(PROJECT_DIR, file); if(req.body.code) fs.writeFileSync(fp, req.body.code); exec('lsof -ti:4000 | xargs kill -9 2>/dev/null', ()=>{ if(serverProc){ try{serverProc.kill();}catch{} serverProc=null; } serverProc = spawn('node', [fp], {cwd: PROJECT_DIR, env:{...process.env,...envVars, PORT:'4000'}}); let logs=''; serverProc.stdout.on('data', d=> logs+=d); serverProc.stderr.on('data', d=> logs+=d); setTimeout(()=> res.json({status:'running', url:'http://localhost:4000', logs: logs || 'Server on 4000...'}), 1200); }); });
+app.post('/api/run-server', (req,res)=>{ const file = req.body.file || 'index.js'; const fp = path.join(PROJECT_DIR, file); if(req.body.code) fs.writeFileSync(fp, req.body.code); exec('lsof -ti:4000 | xargs kill -9 2>/dev/null', ()=>{ if(serverProc){ try{serverProc.kill();}catch{} serverProc=null; } serverProc = spawn('node', [fp], {cwd: PROJECT_DIR, env:{...process.env,...envVars, PORT:'4000'}}); let logs=''; serverProc.stdout.on('data', d=> logs+=d); serverProc.stderr.on('data', d=> logs+=d); setTimeout(()=> res.json({status:'running', url:'https://replit-clone-i1ra.onrender.com', logs: logs || 'Server on 4000...'}), 1200); }); });
 app.post('/api/stop-server', (req,res)=>{ if(serverProc) try{serverProc.kill();}catch{}; exec('lsof -ti:4000 | xargs kill -9 2>/dev/null', ()=> res.json({status:'stopped'})); });
-httpServer.listen(3001, ()=>console.log('✅ V10.2 - HTML Preview Fixed'));
+httpServer.listen(3001, ()=>console.log('✅ V10.3 - Real AI + HTML Fixed'));
