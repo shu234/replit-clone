@@ -24,11 +24,11 @@ export default function Page(){
   const termRef = useRef<HTMLDivElement>(null)
 
   useEffect(()=>{
-    fetch('http://localhost:3001/api/files').then(r=>r.json()).then(d=>{ if(d.files?.length){ setFiles(d.files); setActiveFile(d.files[0]); loadFile(d.files[0]) } })
-    fetch('http://localhost:3001/api/env').then(r=>r.json()).then(d=>{ if(d.env && Object.keys(d.env).length){ setEnvText(Object.entries(d.env).map(([k,v])=>`${k}=${v}`).join('\n')) } }).catch(()=>{})
+    fetch('https://replit-clone-i1ra.onrender.com/api/files').then(r=>r.json()).then(d=>{ if(d.files?.length){ setFiles(d.files); setActiveFile(d.files[0]); loadFile(d.files[0]) } })
+    fetch('https://replit-clone-i1ra.onrender.com/api/env').then(r=>r.json()).then(d=>{ if(d.env && Object.keys(d.env).length){ setEnvText(Object.entries(d.env).map(([k,v])=>`${k}=${v}`).join('\n')) } }).catch(()=>{})
 
     // V10 Socket.io
-    socketRef.current = io('http://localhost:3001');
+    socketRef.current = io('https://replit-clone-i1ra.onrender.com');
     socketRef.current.on('connect', ()=> setUsersOnline(c=>c+1));
     socketRef.current.on('cursor-move', (data:any)=>{ /* show remote cursor */ });
     socketRef.current.on('code-change', (data:any)=>{ if(data.file===activeFile && editorRef.current){ /* sync */ } });
@@ -47,7 +47,7 @@ export default function Page(){
           if(domEvent.key==='Enter'){
             term.writeln(''); if(buf.trim()==='clear'){ term.clear(); buf=''; term.write('\r\n$ '); return}
             if(buf.trim()){
-              const res = await fetch('http://localhost:3001/api/terminal',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cmd:buf})})
+              const res = await fetch('https://replit-clone-i1ra.onrender.com/api/terminal',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cmd:buf})})
               const d = await res.json(); term.writeln(d.output||'');
             }
             buf=''; term.write('\r\n$ ')
@@ -59,8 +59,8 @@ export default function Page(){
     })()
   },[])
 
-  const loadFile = async (file: string) => { setActiveFile(file); const res=await fetch(`http://localhost:3001/api/load?file=${file}`); const data=await res.json(); setCode(data.code||''); if(file.endsWith('.py')) setLang('python'); else if(file.endsWith('.c')) setLang('c'); else if(file.endsWith('.cpp')) setLang('cpp'); else if(file.endsWith('.go')) setLang('go'); else setLang('node') }
-  const saveFile = async () => { await fetch('http://localhost:3001/api/save',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, file:activeFile})}); setOut(`Saved ${activeFile} ✅`) }
+  const loadFile = async (file: string) => { setActiveFile(file); const res=await fetch(`https://replit-clone-i1ra.onrender.com/api/load?file=${file}`); const data=await res.json(); setCode(data.code||''); if(file.endsWith('.py')) setLang('python'); else if(file.endsWith('.c')) setLang('c'); else if(file.endsWith('.cpp')) setLang('cpp'); else if(file.endsWith('.go')) setLang('go'); else setLang('node') }
+  const saveFile = async () => { await fetch('https://replit-clone-i1ra.onrender.com/api/save',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, file:activeFile})}); setOut(`Saved ${activeFile} ✅`) }
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -71,7 +71,7 @@ export default function Page(){
       keybindings: [monaco.KeyCode.Tab],
       run: async () => {
         const pos = editor.getPosition();
-        const res = await fetch('http://localhost:3001/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, cursorLine: pos.lineNumber, file: activeFile})});
+        const res = await fetch('https://replit-clone-i1ra.onrender.com/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, cursorLine: pos.lineNumber, file: activeFile})});
         const d = await res.json();
         if(d.suggestion){
           editor.executeEdits('ai', [{range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column), text: d.suggestion}]);
@@ -87,7 +87,7 @@ export default function Page(){
       // Fetch AI ghost text
       const pos = editor.getPosition();
       if(pos && val.length % 10 === 0){ // throttle
-        fetch('http://localhost:3001/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code: val, cursorLine: pos.lineNumber, file: activeFile})}).then(r=>r.json()).then(d=> setAiSuggestion(d.suggestion.slice(0,60)));
+        fetch('https://replit-clone-i1ra.onrender.com/api/ai-complete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code: val, cursorLine: pos.lineNumber, file: activeFile})}).then(r=>r.json()).then(d=> setAiSuggestion(d.suggestion.slice(0,60)));
       }
     });
   }
@@ -95,31 +95,31 @@ export default function Page(){
   const run = async () => {
     const envObj={} as any; envText.split('\n').forEach(line=>{ const [k,...v]=line.split('='); if(k?.trim()) envObj[k.trim()]=v.join('=').trim() });
     setOut(`Running ${lang}...`);
-    const res=await fetch('http://localhost:3001/api/execute',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, file:activeFile, lang, stdin, env: envObj})});
+    const res=await fetch('https://replit-clone-i1ra.onrender.com/api/execute',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, file:activeFile, lang, stdin, env: envObj})});
     const d=await res.json(); setOut((d.stdout||'')+`\n\nMode: ${d.mode}`)
   }
   const runServer = async () => {
     const envObj={} as any; envText.split('\n').forEach(line=>{ const [k,...v]=line.split('='); if(k?.trim()) envObj[k.trim()]=v.join('=').trim() });
-    await fetch('http://localhost:3001/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env: envObj})});
+    await fetch('https://replit-clone-i1ra.onrender.com/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env: envObj})});
     await saveFile(); setOut('Starting server...'); setShowPreview(true); setPreviewUrl('http://localhost:4000?t='+Date.now());
-    const res=await fetch('http://localhost:3001/api/run-server',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({file:activeFile, code})});
+    const res=await fetch('https://replit-clone-i1ra.onrender.com/api/run-server',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({file:activeFile, code})});
     const d=await res.json(); setOut((d.logs||'') + '\n\n🌐 :4000');
   }
   const deploy = async () => {
-    setOut('Deploying...'); const res=await fetch('http://localhost:3001/api/deploy',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({projectId:'demo-project', file:activeFile, code})}); const d=await res.json(); setDeployUrl(d.url); setShowDeployModal(true); setOut(`✅ DEPLOYED!\n${d.url}`); setPreviewUrl(d.localUrl); setShowPreview(true);
+    setOut('Deploying...'); const res=await fetch('https://replit-clone-i1ra.onrender.com/api/deploy',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({projectId:'demo-project', file:activeFile, code})}); const d=await res.json(); setDeployUrl(d.url); setShowDeployModal(true); setOut(`✅ DEPLOYED!\n${d.url}`); setPreviewUrl(d.localUrl); setShowPreview(true);
   }
-  const install = async () => { if(!pkg) return; setOut(`Installing ${pkg}...`); const res=await fetch('http://localhost:3001/api/install',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pkg, lang})}); const d=await res.json(); setOut(d.stdout) }
+  const install = async () => { if(!pkg) return; setOut(`Installing ${pkg}...`); const res=await fetch('https://replit-clone-i1ra.onrender.com/api/install',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pkg, lang})}); const d=await res.json(); setOut(d.stdout) }
 
   return (
     <div style={{display:'flex', height:'100vh', background:'#0e1525', color:'white', overflow:'hidden', fontFamily:'-apple-system, system-ui'}}>
       <div style={{width:'260px', minWidth:'260px', background:'#1c2333', padding:'12px', borderRight:'1px solid #2b3245', display:'flex', flexDirection:'column', gap:'8px', overflowY:'auto'}}>
         <div style={{color:'#00d8ff', fontWeight:'bold', fontSize:'13px', display:'flex', justifyContent:'space-between'}}><span>📁 Files V10</span><span style={{fontSize:'10px', background:'#00ff9d', color:'black', padding:'2px 6px', borderRadius:'10px'}}>{usersOnline} online</span></div>
         <div>{files.map(f=><div key={f} onClick={()=>loadFile(f)} style={{padding:'6px 8px', cursor:'pointer', background: activeFile===f? '#2b3245':'transparent', borderRadius:'4px', margin:'2px 0', fontSize:'12px'}}>📄 {f}</div>)}</div>
-        <div style={{display:'flex', gap:'5px'}}><input value={newFile} onChange={e=>setNewFile(e.target.value)} placeholder="new file" style={{flex:1, background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/><button onClick={async()=>{ if(!newFile) return; await fetch('http://localhost:3001/api/save',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'// '+newFile, file:newFile})}); setFiles([...files,newFile]); setNewFile('')}} style={{background:'#2b3245', color:'white', border:'1px solid #444', borderRadius:'4px', padding:'5px 8px'}}>+</button></div>
+        <div style={{display:'flex', gap:'5px'}}><input value={newFile} onChange={e=>setNewFile(e.target.value)} placeholder="new file" style={{flex:1, background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/><button onClick={async()=>{ if(!newFile) return; await fetch('https://replit-clone-i1ra.onrender.com/api/save',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:'// '+newFile, file:newFile})}); setFiles([...files,newFile]); setNewFile('')}} style={{background:'#2b3245', color:'white', border:'1px solid #444', borderRadius:'4px', padding:'5px 8px'}}>+</button></div>
         <div style={{borderTop:'1px solid #2b3245', paddingTop:'8px'}}>
           <div style={{fontSize:'11px'}}>Lang: <select value={lang} onChange={e=>setLang(e.target.value as any)} style={{background:'#0e1525', color:'white', border:'1px solid #444', borderRadius:'4px', padding:'2px', fontSize:'11px'}}><option value="node">Node</option><option value="python">Python</option><option value="c">C</option><option value="cpp">C++</option><option value="go">Go</option></select></div>
           <div style={{marginTop:'6px', background:'#0e1525', border:'1px dashed #00d8ff', padding:'5px', borderRadius:'4px', fontSize:'10px', color:'#00d8ff'}}>🤖 AI: Type code + Tab to autocomplete<br/>Ghost: {aiSuggestion||'...'}</div>
-          <div style={{marginTop:'8px'}}><div style={{fontSize:'10px', color:'#00d8ff', display:'flex', justifyContent:'space-between'}}><span>🔑 ENV</span><button onClick={async()=>{const o={} as any; envText.split('\n').forEach(l=>{const [k,...v]=l.split('='); if(k?.trim()) o[k.trim()]=v.join('=').trim()}); await fetch('http://localhost:3001/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env:o})}); setOut('ENV saved ✅')}} style={{fontSize:'9px', background:'#00d8ff', color:'black', border:'none', padding:'2px 6px', borderRadius:'3px'}}>Save</button></div><textarea value={envText} onChange={e=>setEnvText(e.target.value)} style={{width:'100%', height:'50px', background:'#0e1525', color:'#0f0', border:'1px solid #444', padding:'5px', fontSize:'11px', fontFamily:'monospace', borderRadius:'4px'}}/></div>
+          <div style={{marginTop:'8px'}}><div style={{fontSize:'10px', color:'#00d8ff', display:'flex', justifyContent:'space-between'}}><span>🔑 ENV</span><button onClick={async()=>{const o={} as any; envText.split('\n').forEach(l=>{const [k,...v]=l.split('='); if(k?.trim()) o[k.trim()]=v.join('=').trim()}); await fetch('https://replit-clone-i1ra.onrender.com/api/env',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({env:o})}); setOut('ENV saved ✅')}} style={{fontSize:'9px', background:'#00d8ff', color:'black', border:'none', padding:'2px 6px', borderRadius:'3px'}}>Save</button></div><textarea value={envText} onChange={e=>setEnvText(e.target.value)} style={{width:'100%', height:'50px', background:'#0e1525', color:'#0f0', border:'1px solid #444', padding:'5px', fontSize:'11px', fontFamily:'monospace', borderRadius:'4px'}}/></div>
           <div style={{marginTop:'6px'}}><div style={{fontSize:'10px', color:'#00ff9d'}}>📥 stdin</div><textarea value={stdin} onChange={e=>setStdin(e.target.value)} style={{width:'100%', height:'40px', background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/></div>
           <div style={{marginTop:'6px', display:'flex', gap:'5px'}}><input value={pkg} onChange={e=>setPkg(e.target.value)} placeholder="express" style={{flex:1, background:'#0e1525', color:'white', border:'1px solid #444', padding:'5px', fontSize:'11px', borderRadius:'4px'}}/><button onClick={install} style={{background:'#00ff9d', color:'black', border:'none', padding:'5px 8px', borderRadius:'4px', fontSize:'11px', fontWeight:'bold'}}>Install</button></div>
         </div>
