@@ -25,20 +25,26 @@ app.get('/api/env', (req,res)=> res.json({env: envVars}));
 app.post('/api/env', (req,res)=>{ envVars = req.body.env||{}; fs.writeFileSync(path.join(PROJECT_DIR, '.env.json'), JSON.stringify(envVars, null, 2)); res.json({status:'saved', env: envVars}); });
 
 // === REAL AI ===
+// === REAL AI - FIXED FOR GROQ ===
 app.post('/api/ai-complete', async (req,res)=>{
   const {code, cursorLine} = req.body;
   const line = (code?.split('\n')[cursorLine-1]||'').trim();
   if(!line || line.length < 2) return res.json({suggestion:'', ghostText:''});
   try{
-    const apiKey = envVars.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const apiKey = envVars.GROQ_API_KEY || process.env.GROQ_API_KEY || envVars.OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    console.log('AI KEY CHECK:',!!apiKey, 'from', process.env.GROQ_API_KEY? 'ENV' : 'file');
     if(!apiKey) return res.json({suggestion:' // Add GROQ_API_KEY in Render ENV', ghostText:''});
+
     const prompt = `Complete this code. Context:\n${code.slice(-600)}\nLine: ${line}\nReturn ONLY completion, max 50 chars.`;
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+
+    // Use GROQ API (works with Groq key)
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
-      body: JSON.stringify({model:'gpt-3.5-turbo', messages:[{role:'user', content: prompt}], max_tokens:40, temperature:0.2})
+      body: JSON.stringify({model:'llama-3.1-8b-instant', messages:[{role:'user', content: prompt}], max_tokens:40, temperature:0.2})
     });
     const data = await response.json();
+    if(data.error) console.log('Groq error:', data.error);
     const suggestion = data.choices?.[0]?.message?.content?.trim().slice(0,80) || '';
     res.json({suggestion, ghostText: suggestion});
   }catch(e){
